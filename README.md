@@ -9,3 +9,9 @@ AKATSUKI
 2. HASNAWI IMRAN BIN MOHD SAIDI (A24AI0032)
 3. MUHAMMAD ZAHIN BIN MOHD ZAMRI (A24AI0065)
 4. RAQIB HAZIM BIN ABDUL HAMID (A24AI0118)
+
+## Instruction
+1. python -m venv .venv
+2. activate .venv
+3. pip install -r requirement.txt
+4. run file and choose training data
