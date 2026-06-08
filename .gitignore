@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# NLP Project
+final_model_predictions.csv
+
+transformer_*/
+checkpoint-*/
