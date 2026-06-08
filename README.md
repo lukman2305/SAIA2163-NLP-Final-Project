@@ -15,3 +15,8 @@ AKATSUKI
 2. activate .venv
 3. pip install -r requirement.txt
 4. run file and choose training data
+
+## Run Streamlit
+1. activate venv
+2. pip install streamlit
+3. streamlit run app.py
