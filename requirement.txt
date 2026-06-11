@@ -11,3 +11,5 @@ datasets
 accelerate
 jupyter
 ipykernel
+seaborn
+streamlit
