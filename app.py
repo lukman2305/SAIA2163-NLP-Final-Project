@@ -458,38 +458,61 @@ def make_fig_clean(fig, ax):
     return fig
 
 
+
 def plot_label_distribution(df):
-    fig, ax = plt.subplots(figsize=(7.5, 4.3))
-    order = df["label"].value_counts().index
-    palette = [sentiment_style(x)[0] for x in order]
-    sns.countplot(data=df, x="label", order=order, ax=ax, palette=palette)
-    ax.set_title("Sentiment Class Distribution", fontsize=14, pad=14)
-    ax.set_xlabel("Sentiment Label")
-    ax.set_ylabel("Number of Reviews")
-    return make_fig_clean(fig, ax)
+    counts = df["label"].value_counts().reset_index()
+    counts.columns = ["Label", "Count"]
+    counts["Percentage"] = counts["Count"] / counts["Count"].sum() * 100
+    counts = counts.sort_values("Count", ascending=True)
+
+    fig, ax = plt.subplots(figsize=(9.2, 5.2))
+    colors = [sentiment_style(x)[0] for x in counts["Label"]]
+    bars = ax.barh(counts["Label"], counts["Count"], color=colors, edgecolor="white", linewidth=2)
+
+    for bar, pct in zip(bars, counts["Percentage"]):
+        width = bar.get_width()
+        ax.text(width + max(counts["Count"]) * 0.015, bar.get_y() + bar.get_height()/2,
+                f"{int(width):,} reviews  •  {pct:.1f}%", va="center", fontsize=10, fontweight="bold", color="#434343")
+
+    ax.set_title("Sentiment Class Distribution", fontsize=17, pad=16, fontweight="bold")
+    ax.set_xlabel("Number of reviews", fontsize=11)
+    ax.set_ylabel("")
+    ax.set_xlim(0, max(counts["Count"]) * 1.22)
+    ax.grid(axis="x", color="#E8C8D1", linewidth=1, alpha=0.85)
+    ax.grid(axis="y", visible=False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+    ax.spines["bottom"].set_color("#E8C8D1")
+    fig.tight_layout()
+    return fig
 
 
 def plot_wordcloud(df, label_filter="All"):
+    text_col = "text" if "text" in df.columns else "clean_text" if "clean_text" in df.columns else "content"
     if label_filter != "All":
-        text_data = " ".join(df[df["label"] == label_filter]["text"].dropna().astype(str))
+        text_data = " ".join(df[df["label"] == label_filter][text_col].dropna().astype(str))
     else:
-        text_data = " ".join(df["text"].dropna().astype(str))
+        text_data = " ".join(df[text_col].dropna().astype(str))
 
     if not text_data.strip():
         text_data = "no text available"
 
     wc = WordCloud(
-        width=1200,
-        height=520,
-        background_color="#FFE0E9",
-        max_words=120,
+        width=1400,
+        height=620,
+        background_color="white",
+        max_words=150,
         colormap="viridis",
-        contour_width=0,
+        collocations=False,
+        contour_width=2,
+        contour_color="#E8C8D1",
     ).generate(text_data)
-    fig, ax = plt.subplots(figsize=(11, 4.8))
+    fig, ax = plt.subplots(figsize=(12, 5.3))
     ax.imshow(wc, interpolation="bilinear")
     ax.axis("off")
-    ax.set_title(f"Word Cloud: {label_filter}", fontsize=14, pad=12)
+    ax.set_title(f"Word Cloud: {label_filter}", fontsize=17, pad=14, fontweight="bold")
+    fig.tight_layout()
     return fig
 
 
@@ -498,28 +521,47 @@ def plot_confusion_matrix(metadata):
     label_mapping = metadata.get("label_mapping", {})
     labels = [label for label, _ in sorted(label_mapping.items(), key=lambda x: x[1])]
 
-    fig, ax = plt.subplots(figsize=(6.6, 4.5))
+    if cm.size == 0:
+        fig, ax = plt.subplots(figsize=(7, 4))
+        ax.text(0.5, 0.5, "Confusion matrix not available", ha="center", va="center", fontsize=13)
+        ax.axis("off")
+        return fig
+
+    row_sum = cm.sum(axis=1, keepdims=True)
+    pct = np.divide(cm, row_sum, out=np.zeros_like(cm, dtype=float), where=row_sum != 0) * 100
+    annot = np.empty_like(cm, dtype=object)
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            annot[i, j] = f"{cm[i, j]}\n{pct[i, j]:.1f}%"
+
+    fig, ax = plt.subplots(figsize=(7.6, 5.6))
     sns.heatmap(
         cm,
-        annot=True,
-        fmt="d",
-        cmap="BuPu",
+        annot=annot,
+        fmt="",
+        cmap="RdPu",
         xticklabels=labels,
         yticklabels=labels,
         ax=ax,
-        cbar=False,
-        linewidths=1,
-        linecolor="#E8C8D1",
+        cbar=True,
+        linewidths=1.8,
+        linecolor="white",
         square=True,
+        annot_kws={"fontsize": 11, "fontweight": "bold"},
     )
-    ax.set_title("Confusion Matrix - Best Model", fontsize=14, pad=14)
-    ax.set_xlabel("Predicted Label")
-    ax.set_ylabel("True Label")
+    ax.set_title("Confusion Matrix — Best Model", fontsize=17, pad=16, fontweight="bold")
+    ax.set_xlabel("Predicted sentiment", fontsize=11, fontweight="bold")
+    ax.set_ylabel("Actual sentiment", fontsize=11, fontweight="bold")
+    ax.tick_params(axis="x", rotation=0)
+    ax.tick_params(axis="y", rotation=0)
     fig.tight_layout()
     return fig
 
 
-def plot_model_comparison(pred_df):
+def build_model_comparison_df(pred_df):
+    if pred_df.empty or "true_sentiment" not in pred_df.columns:
+        return pd.DataFrame()
+
     model_cols = [c for c in pred_df.columns if c.startswith("sentiment_")]
     rows = []
     for col in model_cols:
@@ -528,39 +570,110 @@ def plot_model_comparison(pred_df):
         rows.append({"Model": model_name, "Accuracy": accuracy})
 
     comparison_df = pd.DataFrame(rows)
-    fig, ax = plt.subplots(figsize=(8.5, 4.6))
-    sns.barplot(data=comparison_df, x="Model", y="Accuracy", ax=ax, color="#5F7A44")
-    ax.set_ylim(0, 1)
-    ax.set_title("Model Accuracy Comparison", fontsize=14, pad=14)
-    ax.set_ylabel("Accuracy")
-    ax.set_xlabel("Model")
-    for container in ax.containers:
-        ax.bar_label(container, fmt="%.2f", padding=4)
-    return make_fig_clean(fig, ax), comparison_df
+    if not comparison_df.empty:
+        comparison_df = comparison_df.sort_values("Accuracy", ascending=False).reset_index(drop=True)
+        comparison_df["Rank"] = comparison_df.index + 1
+        comparison_df["Accuracy (%)"] = (comparison_df["Accuracy"] * 100).round(2)
+    return comparison_df
+
+
+def plot_model_comparison(pred_df):
+    comparison_df = build_model_comparison_df(pred_df)
+    fig, ax = plt.subplots(figsize=(9.4, 5.2))
+
+    if comparison_df.empty:
+        ax.text(0.5, 0.5, "Prediction comparison file not found", ha="center", va="center", fontsize=13)
+        ax.axis("off")
+        return fig, comparison_df
+
+    colors = ["#B9375E" if i == 0 else "#5F7A44" if i == 1 else "#BE9A60" for i in range(len(comparison_df))]
+    bars = ax.bar(comparison_df["Model"], comparison_df["Accuracy (%)"], color=colors, edgecolor="white", linewidth=2)
+
+    for i, bar in enumerate(bars):
+        height = bar.get_height()
+        badge = "BEST" if i == 0 else f"#{i+1}"
+        ax.text(bar.get_x() + bar.get_width()/2, height + 1.2, f"{height:.2f}%\n{badge}",
+                ha="center", va="bottom", fontsize=10, fontweight="bold", color="#434343")
+
+    ax.set_ylim(0, 105)
+    ax.set_title("Model Accuracy Comparison", fontsize=17, pad=18, fontweight="bold")
+    ax.set_ylabel("Accuracy (%)", fontsize=11)
+    ax.set_xlabel("")
+    ax.grid(axis="y", color="#E8C8D1", linewidth=1, alpha=0.85)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#E8C8D1")
+    ax.spines["bottom"].set_color("#E8C8D1")
+    fig.tight_layout()
+    return fig, comparison_df
 
 
 def plot_top_words(df, top_n=20):
-    all_words = " ".join(df["text"].dropna().astype(str)).split()
+    text_col = "text" if "text" in df.columns else "clean_text" if "clean_text" in df.columns else "content"
+    all_words = " ".join(df[text_col].dropna().astype(str)).split()
     counts = Counter(all_words).most_common(top_n)
     top_df = pd.DataFrame(counts, columns=["Word", "Frequency"])
+    top_df = top_df.sort_values("Frequency", ascending=True)
 
-    fig, ax = plt.subplots(figsize=(8.5, 5.4))
-    sns.barplot(data=top_df, y="Word", x="Frequency", ax=ax, color="#434343")
-    ax.set_title(f"Top {top_n} Most Common Words", fontsize=14, pad=14)
-    ax.set_xlabel("Frequency")
-    ax.set_ylabel("Word")
-    return make_fig_clean(fig, ax), top_df
+    fig, ax = plt.subplots(figsize=(9.2, 6.2))
+    bars = ax.barh(top_df["Word"], top_df["Frequency"], color="#B9375E", edgecolor="white", linewidth=1.5)
+
+    for bar in bars:
+        width = bar.get_width()
+        ax.text(width + max(top_df["Frequency"]) * 0.012, bar.get_y() + bar.get_height()/2,
+                f"{int(width):,}", va="center", fontsize=9.5, fontweight="bold", color="#434343")
+
+    ax.set_title(f"Top {top_n} Most Frequent Words", fontsize=17, pad=16, fontweight="bold")
+    ax.set_xlabel("Frequency", fontsize=11)
+    ax.set_ylabel("")
+    ax.set_xlim(0, max(top_df["Frequency"]) * 1.16)
+    ax.grid(axis="x", color="#E8C8D1", linewidth=1, alpha=0.85)
+    ax.grid(axis="y", visible=False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+    ax.spines["bottom"].set_color("#E8C8D1")
+    fig.tight_layout()
+    return fig, top_df.sort_values("Frequency", ascending=False).reset_index(drop=True)
 
 
 def plot_text_length(df):
+    text_col = "text" if "text" in df.columns else "clean_text" if "clean_text" in df.columns else "content"
     temp = df.copy()
-    temp["text_length"] = temp["text"].fillna("").astype(str).apply(lambda x: len(x.split()))
-    fig, ax = plt.subplots(figsize=(7.5, 4.4))
-    sns.histplot(temp["text_length"], bins=30, kde=True, ax=ax, color="#5F7A44")
-    ax.set_title("Review Text Length Distribution", fontsize=14, pad=14)
-    ax.set_xlabel("Number of Words")
-    ax.set_ylabel("Number of Reviews")
+    temp["text_length"] = temp[text_col].fillna("").astype(str).apply(lambda x: len(x.split()))
+    fig, ax = plt.subplots(figsize=(8.6, 4.9))
+    sns.histplot(temp["text_length"], bins=30, kde=True, ax=ax, color="#B9375E", edgecolor="white", linewidth=1)
+    median_len = temp["text_length"].median()
+    ax.axvline(median_len, color="#434343", linestyle="--", linewidth=2)
+    ax.text(median_len, ax.get_ylim()[1] * 0.9, f"Median: {median_len:.0f} words", rotation=90,
+            va="top", ha="right", fontsize=10, fontweight="bold", color="#434343")
+    ax.set_title("Review Text Length Distribution", fontsize=17, pad=16, fontweight="bold")
+    ax.set_xlabel("Number of words", fontsize=11)
+    ax.set_ylabel("Number of reviews", fontsize=11)
     return make_fig_clean(fig, ax)
+
+
+def plot_metric_summary(metrics):
+    metric_df = pd.DataFrame({
+        "Metric": ["Accuracy", "Precision", "Recall", "F1-score"],
+        "Score": [
+            metrics.get("accuracy", 0),
+            metrics.get("precision", 0),
+            metrics.get("recall", 0),
+            metrics.get("f1_score", 0),
+        ],
+    })
+    metric_df["Score (%)"] = metric_df["Score"] * 100
+    fig, ax = plt.subplots(figsize=(8.8, 4.7))
+    bars = ax.bar(metric_df["Metric"], metric_df["Score (%)"], color=["#B9375E", "#5F7A44", "#BE9A60", "#434343"], edgecolor="white", linewidth=2)
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2, height + 1, f"{height:.2f}%", ha="center", va="bottom", fontsize=10, fontweight="bold")
+    ax.set_ylim(0, 105)
+    ax.set_title("Best Model Evaluation Metrics", fontsize=17, pad=16, fontweight="bold")
+    ax.set_ylabel("Score (%)")
+    ax.set_xlabel("")
+    return make_fig_clean(fig, ax), metric_df
 
 
 def probability_table(probabilities):
@@ -608,9 +721,15 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-page = st.sidebar.selectbox(
+page = st.sidebar.radio(
     "Navigation",
-    ["Dashboard", "Sentiment Analyzer", "Data Explorer", "Visualizations", "Model Performance"],
+    [
+        "Dashboard",
+        "Sentiment Analyzer",
+        "Data Explorer",
+        "Visualizations",
+        "Model Performance"
+    ]
 )
 
 st.sidebar.markdown("---")
@@ -838,36 +957,53 @@ elif page == "Visualizations":
             <div class="hero-kicker">Visual Analytics</div>
             <div class="hero-title">Sentiment Insights</div>
             <div class="hero-subtitle">
-                Explore word patterns, class balance, common tokens, and review length distribution.
+                Explore richer visual summaries of review sentiment, common words, review length, and class balance.
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Word Cloud", "Class Distribution", "Top Words", "Text Length"])
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        build_kpi("Reviews", f"{len(df):,}", "Dataset records")
+    with c2:
+        build_kpi("Classes", f"{df['label'].nunique() if 'label' in df.columns else 'N/A'}", "Sentiment labels")
+    with c3:
+        top_label = df["label"].value_counts().idxmax() if "label" in df.columns and not df.empty else "N/A"
+        build_kpi("Majority Class", str(top_label).title(), "Most common label")
+    with c4:
+        text_col = "text" if "text" in df.columns else "clean_text" if "clean_text" in df.columns else "content"
+        avg_len = df[text_col].fillna("").astype(str).apply(lambda x: len(x.split())).mean()
+        build_kpi("Avg. Length", f"{avg_len:.0f}", "Words per review")
+
+    tab1, tab2, tab3, tab4 = st.tabs(["☁️ Word Cloud", "📊 Class Balance", "🔤 Top Words", "📝 Text Length"])
 
     with tab1:
-        st.markdown('<div class="lux-card"><div class="card-title">Word Cloud</div>', unsafe_allow_html=True)
+        st.markdown('<div class="lux-card"><div class="card-title">Word Cloud</div><div class="card-muted">The larger the word, the more frequently it appears in the review dataset.</div>', unsafe_allow_html=True)
         label_options = ["All"] + sorted(df["label"].dropna().unique().tolist())
         selected_label = st.selectbox("Choose sentiment", label_options)
         st.pyplot(plot_wordcloud(df, selected_label), use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
-        st.markdown('<div class="lux-card"><div class="card-title">Class Distribution</div>', unsafe_allow_html=True)
+        st.markdown('<div class="lux-card"><div class="card-title">Sentiment Class Distribution</div><div class="card-muted">This chart shows whether the dataset is balanced or dominated by one sentiment class.</div>', unsafe_allow_html=True)
         st.pyplot(plot_label_distribution(df), use_container_width=True)
+        label_summary = df["label"].value_counts().reset_index()
+        label_summary.columns = ["Sentiment", "Count"]
+        label_summary["Percentage"] = (label_summary["Count"] / label_summary["Count"].sum() * 100).round(2)
+        st.dataframe(label_summary, use_container_width=True, hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with tab3:
-        st.markdown('<div class="lux-card"><div class="card-title">Top 20 Most Common Words</div>', unsafe_allow_html=True)
+        st.markdown('<div class="lux-card"><div class="card-title">Top 20 Most Frequent Words</div><div class="card-muted">These words help explain the dominant themes found in user reviews.</div>', unsafe_allow_html=True)
         fig, top_df = plot_top_words(df)
         st.pyplot(fig, use_container_width=True)
         st.dataframe(top_df, use_container_width=True, hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with tab4:
-        st.markdown('<div class="lux-card"><div class="card-title">Review Text Length Distribution</div>', unsafe_allow_html=True)
+        st.markdown('<div class="lux-card"><div class="card-title">Review Text Length Distribution</div><div class="card-muted">This chart shows whether users usually leave short comments or longer detailed reviews.</div>', unsafe_allow_html=True)
         st.pyplot(plot_text_length(df), use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -879,10 +1015,10 @@ elif page == "Model Performance":
     st.markdown(
         """
         <div class="hero-card">
-            <div class="hero-kicker">Machine Learning Model</div>
+            <div class="hero-kicker">Machine Learning Evaluation</div>
             <div class="hero-title">Model Performance</div>
             <div class="hero-subtitle">
-                Review the selected model, evaluation metrics, label mapping, confusion matrix, and comparison results.
+                Compare model performance using accuracy, precision, recall, F1-score, confusion matrix, and final model details.
             </div>
         </div>
         """,
@@ -895,30 +1031,49 @@ elif page == "Model Performance":
     metric_cols[2].metric("Recall", f"{metrics.get('recall', 0):.2%}")
     metric_cols[3].metric("F1-score", f"{metrics.get('f1_score', 0):.2%}")
 
-    left, right = st.columns([1, 1])
+    st.markdown('<div class="lux-card"><div class="card-title">Evaluation Metrics Summary</div><div class="card-muted">The final selected model is evaluated using four standard classification metrics.</div>', unsafe_allow_html=True)
+    metric_fig, metric_df = plot_metric_summary(metrics)
+    st.pyplot(metric_fig, use_container_width=True)
+    metric_table = metric_df.copy()
+    metric_table["Score (%)"] = metric_table["Score (%)"].round(2)
+    st.dataframe(metric_table[["Metric", "Score (%)"]], use_container_width=True, hide_index=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    left, right = st.columns([0.95, 1.05])
     with left:
-        st.markdown('<div class="lux-card"><div class="card-title">Best Model</div>', unsafe_allow_html=True)
-        st.write(f"**{metadata.get('best_model_name', 'N/A')}**")
+        st.markdown('<div class="lux-card"><div class="card-title">Best Model Selected</div>', unsafe_allow_html=True)
+        best_name = metadata.get("best_model_name", "N/A")
+        st.markdown(f"### 🏆 {best_name}")
         st.write(
-            "The final model uses TF-IDF feature extraction with unigram and bigram features, "
-            "followed by Logistic Regression for sentiment classification."
+            "The best model was selected based on the overall evaluation results. "
+            "It is saved as `best_sentiment_pipeline.pkl` and loaded by the Streamlit app for prediction."
         )
+        st.write("**Training setup:** 80:20 train-test split")
+        st.write("**Feature extraction:** TF-IDF text representation")
+        st.write("**Task:** Multi-class sentiment classification")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown('<div class="lux-card"><div class="card-title">Label Mapping</div>', unsafe_allow_html=True)
-        st.json(label_mapping)
+        st.markdown('<div class="lux-card"><div class="card-title">Label Mapping</div><div class="card-muted">How the model encodes sentiment labels internally.</div>', unsafe_allow_html=True)
+        if label_mapping:
+            mapping_df = pd.DataFrame(list(label_mapping.items()), columns=["Sentiment", "Encoded Label"])
+            st.dataframe(mapping_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("Label mapping not available.")
         st.markdown('</div>', unsafe_allow_html=True)
 
     with right:
-        st.markdown('<div class="lux-card"><div class="card-title">Confusion Matrix</div>', unsafe_allow_html=True)
+        st.markdown('<div class="lux-card"><div class="card-title">Confusion Matrix</div><div class="card-muted">Correct predictions appear on the diagonal. Off-diagonal values show where the model confused one class with another.</div>', unsafe_allow_html=True)
         st.pyplot(plot_confusion_matrix(metadata), use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="lux-card"><div class="card-title">Model Comparison</div>', unsafe_allow_html=True)
+    st.markdown('<div class="lux-card"><div class="card-title">Model Comparison</div><div class="card-muted">Accuracy comparison across the trained models. The highest bar indicates the best-performing model.</div>', unsafe_allow_html=True)
     if not pred_df.empty:
         fig, comparison_df = plot_model_comparison(pred_df)
         st.pyplot(fig, use_container_width=True)
-        st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+        display_df = comparison_df.copy()
+        if not display_df.empty:
+            display_df["Accuracy"] = (display_df["Accuracy"] * 100).round(2).astype(str) + "%"
+            st.dataframe(display_df[["Rank", "Model", "Accuracy"]], use_container_width=True, hide_index=True)
     else:
         st.info("Prediction comparison file not found.")
     st.markdown('</div>', unsafe_allow_html=True)
