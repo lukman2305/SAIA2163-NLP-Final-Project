@@ -67,28 +67,28 @@ Shows the distribution of sentiment classes within the dataset.
 ---
 
 ### 🧩 Logistic Regression Confusion Matrix
-![LR CM](images/confusion_matrix_lr.png)
+![LR CM](images/confusion_matrix_logistic_regression.png)
 
 Illustrates the classification performance of the Logistic Regression model.
 
 ---
 
 ### 🧩 Naive Bayes Confusion Matrix
-![NB CM](images/confusion_matrix_nb.png)
+![NB CM](images/confusion_matrix_naive_bayes.png)
 
 Illustrates the classification performance of the Naive Bayes model.
 
 ---
 
 ### 🏆 Model Performance Comparison
-![Comparison](images/model_comparison.png)
+![Comparison](images/model_accuracy_comparison.png)
 
 Compares the evaluation metrics across different models.
 
 ---
 
 ### 🔤 Top 20 Most Frequent Words
-![Top 20 Words](images/top20_words.png)
+![Top 20 Words](images/top_20_words.png)
 
 Highlights the most commonly occurring words in the dataset.
 
