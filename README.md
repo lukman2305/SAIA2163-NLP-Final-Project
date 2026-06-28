@@ -1,210 +1,98 @@
-# 🧠 SAIA2163 NLP Final Project
+# Multilingual Improvement Patch
 
-A Streamlit-based Natural Language Processing (NLP) application developed as part of the **SAIA2163 Final Project**. The project focuses on **sentiment classification and text analysis** using both traditional machine learning techniques and transformer-based models.
+This patch changes the project from **English-only sentiment analysis** to **multilingual sentiment analysis** using all five dataset languages:
 
----
+- EN: English
+- FR: French
+- DE: German
+- JP: Japanese
+- IT: Italian
 
-## 👥 Team AKATSUKI
+## Why this change was needed
 
-| No. | Name | Student ID |
-|------|-------|------------|
-| 1 | Muhammad Lukman Bin Nasrum | A24AI0061 |
-| 2 | Hasnawi Imran Bin Mohd Saidi | A24AI0032 |
-| 3 | Muhammad Zahin Bin Mohd Zamri | A24AI0065 |
-| 4 | Raqib Hazim Bin Abdul Hamid | A24AI0118 |
+The English-only dataset had only 70 neutral reviews, which caused neutral recall to become 0. Using all languages increases the number of neutral examples and gives the model more training data.
 
----
+## Important method change
 
-## 📌 Project Overview
+The previous improved version used English lemmatization. That is good for English-only data, but not for multilingual data.
 
-This project aims to classify text sentiments and provide insightful visualizations through an interactive Streamlit application. The workflow includes:
+For multilingual training, this patch uses:
 
-- Data preprocessing and cleaning
-- Feature extraction using TF-IDF
-- Model training and evaluation
-- Sentiment prediction through a user-friendly interface
-- Visualization of dataset characteristics and model performance
+- Unicode-safe text cleaning
+- Emoji conversion using `emoji.demojize`
+- Language tokens such as `lang_en`, `lang_fr`, `lang_de`, `lang_jp`, `lang_it`
+- Word TF-IDF n-grams
+- Character n-grams
+- Combined word + character TF-IDF
+- Class balancing
+- Macro-F1 and neutral recall evaluation
+- Per-language metrics
 
----
+It does **not** use English-only stopword removal or English-only lemmatization.
 
-## 🤖 Models Implemented
+## Files
 
-| Model | Type |
-|--------|-------|
-| Logistic Regression | Machine Learning |
-| Naive Bayes | Machine Learning |
-| DistilBERT | Transformer-Based Deep Learning |
-
----
-
-## 📊 Model Evaluation
-
-The models were evaluated using an **80:20 train-test split** and compared using the following metrics:
-
-- Accuracy
-- Precision
-- Recall
-- F1-Score
-
-The best-performing model was selected and saved using **Joblib** for deployment within the Streamlit application.
-
----
-
-## 📈 Visualizations
-
-### ☁️ Word Cloud
-![Word Cloud](images/wordcloud.png)
-
-Visual representation of the most frequent words appearing in the dataset.
-
----
-
-### 📊 Class Distribution
-![Class Distribution](images/class_distribution.png)
-
-Shows the distribution of sentiment classes within the dataset.
-
----
-
-### 🧩 Logistic Regression Confusion Matrix
-![LR CM](images/confusion_matrix_logistic_regression.png)
-
-Illustrates the classification performance of the Logistic Regression model.
-
----
-
-### 🧩 Naive Bayes Confusion Matrix
-![NB CM](images/confusion_matrix_naive_bayes.png)
-
-Illustrates the classification performance of the Naive Bayes model.
-
----
-
-### 🏆 Model Performance Comparison
-![Comparison](images/model_accuracy_comparison.png)
-
-Compares the evaluation metrics across different models.
-
----
-
-### 🔤 Top 20 Most Frequent Words
-![Top 20 Words](images/top_20_words.png)
-
-Highlights the most commonly occurring words in the dataset.
-
----
-
-## 📂 Project Structure
+Copy these files into the project root folder:
 
 ```text
-SAIA2163-NLP-FINAL-PROJECT/
-│
-├── app.py
-├── NLP_Final.ipynb
-├── best_sentiment_pipeline.pkl
-├── backend_metadata.pkl
-├── Training_Data_Google_Play_reviews_6000.csv
-├── preprocessed_reviews.csv
-├── requirement.txt
-├── README.md
-│
-└── images/
-    ├── wordcloud.png
-    ├── class_distribution.png
-    ├── confusion_matrix_lr.png
-    ├── confusion_matrix_nb.png
-    ├── model_comparison.png
-    └── top20_words.png
+preprocessing_utils.py
+train_multilingual_models.py
+app.py
+requirement.txt
 ```
 
----
+You can rename:
 
-## ⚙️ Installation
-
-### 1. Create a Virtual Environment
-
-```bash
-python -m venv .venv
+```text
+preprocessing_utils_multilingual.py -> preprocessing_utils.py
+app_multilingual.py -> app.py
+requirement_multilingual.txt -> requirement.txt
 ```
 
-### 2. Activate the Environment
-
-**Windows**
-
-```bash
-.venv\Scripts\activate
-```
-
-**macOS / Linux**
-
-```bash
-source .venv/bin/activate
-```
-
-### 3. Install Dependencies
+## Run training
 
 ```bash
 pip install -r requirement.txt
+python train_multilingual_models.py --data Training_Data_Google_Play_reviews_6000.csv
 ```
 
----
-
-## 🚀 Running the Project
-
-### Run the Notebook
-
-Open the notebook:
+For slower GridSearchCV tuning:
 
 ```bash
-jupyter notebook
+python train_multilingual_models.py --data Training_Data_Google_Play_reviews_6000.csv --run-grid
 ```
 
-Then execute:
+For optional multilingual transformer training:
 
-```text
-NLP_Final.ipynb
+```bash
+python train_multilingual_models.py --data Training_Data_Google_Play_reviews_6000.csv --run-transformer
 ```
 
-Select the training dataset when prompted.
+The transformer uses `xlm-roberta-base`, which is more suitable for multilingual text than English DistilBERT.
 
----
-
-### Run the Streamlit Application
+## Run the app
 
 ```bash
 streamlit run app.py
 ```
 
-After running the command, open the local URL generated by Streamlit in your browser.
+## Main output files
 
----
+Training creates:
 
-## 🛠️ Technologies Used
+```text
+best_sentiment_pipeline.pkl
+backend_metadata.pkl
+backend_metadata.json
+preprocessed_reviews.csv
+final_model_predictions.csv
+model_evaluation_comparison.csv
+multilingual_language_metrics.csv
+images/
+```
 
-- Python
-- Pandas
-- NumPy
-- NLTK
-- Scikit-learn
-- Hugging Face Transformers
-- PyTorch
-- Streamlit
-- Matplotlib
-- WordCloud
-- Joblib
+## Report explanation
 
----
+Use this in your report:
 
-## 📚 Course Information
-
-**Course:** SAIA2163 – Natural Language Processing
-
-**Project:** Final Group Project
-
-**Institution:** Universiti Teknologi Malaysia (UTM)
-
----
-
-## 📄 License
-
-This repository was developed for academic purposes as part of the SAIA2163 coursework.
+> The improved multilingual model uses the full dataset across English, French, German, Japanese, and Italian reviews. Because English-only lemmatization and stopword removal are not suitable for multilingual text, the preprocessing was changed to Unicode-safe light cleaning. Language tokens were added to help the model learn language-specific patterns. Word-level and character-level TF-IDF n-gram models were evaluated, and performance was compared using accuracy, weighted F1-score, macro-F1, neutral recall, and per-language metrics.

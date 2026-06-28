@@ -1,0 +1,49 @@
+{
+  "project_type": "multilingual_sentiment_analysis",
+  "best_model_name": "Multilingual SGD Character N-grams",
+  "label_mapping": {
+    "negative": 0,
+    "neutral": 1,
+    "positive": 2
+  },
+  "inverse_label_mapping": {
+    "0": "negative",
+    "1": "neutral",
+    "2": "positive"
+  },
+  "label_names": [
+    "negative",
+    "neutral",
+    "positive"
+  ],
+  "supported_languages": {
+    "EN": "English",
+    "FR": "French",
+    "DE": "German",
+    "JP": "Japanese",
+    "IT": "Italian"
+  },
+  "uses_language_token": true,
+  "preprocessing": "Unicode-safe multilingual cleaning; no English-only lemmatization or stopword removal.",
+  "dataset_rows_after_preprocessing": 6000,
+  "language_distribution": {
+    "DE": 1200,
+    "EN": 1200,
+    "FR": 1200,
+    "IT": 1200,
+    "JP": 1200
+  },
+  "sentiment_distribution": {
+    "positive": 3245,
+    "negative": 2302,
+    "neutral": 453
+  },
+  "best_metrics": {
+    "accuracy": 0.7966666666666666,
+    "precision": 0.7855681826760443,
+    "recall": 0.7966666666666666,
+    "f1_score": 0.7901214358990629,
+    "macro_f1": 0.649796172269045,
+    "neutral_recall": 0.25274725274725274
+  }
+}
