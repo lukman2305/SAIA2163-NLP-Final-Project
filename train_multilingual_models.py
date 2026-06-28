@@ -331,6 +331,37 @@ def save_visuals(df: pd.DataFrame, results_df: pd.DataFrame, output_dir: Path) -
         except Exception as exc:
             print(f"Skipping word cloud because WordCloud failed: {exc}")
 
+    # Top 20 words bar chart
+    from sklearn.feature_extraction.text import CountVectorizer
+
+    top_text = df["text"].dropna().astype(str)
+    if len(top_text) > 0:
+        vectorizer = CountVectorizer(
+            max_features=20,
+            token_pattern=r"(?u)\b\w+\b"
+        )
+        word_counts = vectorizer.fit_transform(top_text)
+        word_sum = word_counts.sum(axis=0).A1
+
+        top_words_df = pd.DataFrame({
+            "word": vectorizer.get_feature_names_out(),
+            "count": word_sum
+        }).sort_values("count", ascending=True)
+
+        ax = top_words_df.plot(
+            kind="barh",
+            x="word",
+            y="count",
+            figsize=(10, 6),
+            legend=False,
+            title="Top 20 Most Frequent Words"
+        )
+        ax.set_xlabel("Frequency")
+        ax.set_ylabel("Word")
+        plt.tight_layout()
+        plt.savefig(images_dir / "top_20_words_multilingual.png", dpi=160, bbox_inches="tight")
+        plt.close()
+
 
 def language_level_metrics(test_df: pd.DataFrame, predictions: np.ndarray, output_dir: Path) -> pd.DataFrame:
     temp = test_df.copy()

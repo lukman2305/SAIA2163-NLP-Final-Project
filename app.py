@@ -636,6 +636,13 @@ elif page == "4. Visualizations":
         show_image_if_exists(selected_img, selected_img)
     else:
         st.info("No additional model-specific charts found.")
+    st.subheader("N-gram Analysis")
+    if Path("images/top_15_bigrams.png").exists():
+        st.image("images/top_15_bigrams.png", caption="Top 15 Most Frequent Bigrams")
+    else:
+        st.info("Bigram visualization not found.")
+    if Path("images/top_15_trigrams.png").exists():
+        st.image("images/top_15_trigrams.png", caption="Top 15 Most Frequent Trigrams")
 
 
 # -----------------------------------------------------------------------------
