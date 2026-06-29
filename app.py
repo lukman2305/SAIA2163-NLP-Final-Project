@@ -610,7 +610,7 @@ def dashboard_page() -> None:
         """
         <div class="hero">
             <h1>Multilingual App Review Sentiment AI</h1>
-            <p>Beautiful dashboard for exploring multilingual Google Play reviews, analyzing user sentiment, and presenting model performance for the SAIA2163 NLP final project.</p>
+            <p>Explore multilingual Google Play reviews, analyzing user sentiment, and presenting model performance.</p>
             <div class="pill-row">
                 <span class="pill">Negative / Neutral / Positive</span>
                 <span class="pill">EN · FR · DE · IT · JP</span>
