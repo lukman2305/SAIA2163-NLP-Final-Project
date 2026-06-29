@@ -61,9 +61,46 @@ PRED_PATH = BASE_DIR / "final_model_predictions.csv"
 COMPARISON_PATH = BASE_DIR / "model_evaluation_comparison.csv"
 LANGUAGE_METRICS_PATH = BASE_DIR / "multilingual_language_metrics.csv"
 
+# The trained model may return numeric classes (0, 1, 2).
+# This mapping converts them into readable sentiment labels for the app UI.
+# Change this mapping here only if your training notebook used a different encoding.
+LABEL_ID_TO_NAME = {
+    "0": "negative",
+    "1": "neutral",
+    "2": "positive",
+    0: "negative",
+    1: "neutral",
+    2: "positive",
+}
+
 LABEL_ORDER = ["negative", "neutral", "positive"]
 SENTIMENT_EMOJI = {"negative": "😞", "neutral": "😐", "positive": "😊"}
 SENTIMENT_COLOR = {"negative": "#ef4444", "neutral": "#f59e0b", "positive": "#22c55e"}
+
+
+def sentiment_label(value: Any) -> str:
+    """Convert model/dataset labels like 0, 1, 2 into negative/neutral/positive."""
+    if pd.isna(value):
+        return "unknown"
+    raw = value
+    text_value = str(value).strip().lower()
+
+    if raw in LABEL_ID_TO_NAME:
+        return LABEL_ID_TO_NAME[raw]
+    if text_value in LABEL_ID_TO_NAME:
+        return LABEL_ID_TO_NAME[text_value]
+    if text_value in LABEL_ORDER:
+        return text_value
+    return text_value
+
+
+def sentiment_label_title(value: Any) -> str:
+    label = sentiment_label(value)
+    return label.capitalize() if label else "Unknown"
+
+
+def display_sentiment_series(series: pd.Series) -> pd.Series:
+    return series.apply(sentiment_label)
 
 TEAM_MEMBERS = [
     "Muhammad Lukman Bin Nasrum (A24AI0061)",
@@ -380,8 +417,11 @@ def predict_review(text: str, lang_code: str) -> Tuple[Optional[str], Optional[f
         return None, None, {}, ""
 
     prepared_text = prepare_input_text(text, lang_code)
-    predicted = model.predict([prepared_text])[0]
-    predicted = str(predicted)
+
+    # Raw prediction can be a number such as 0/1/2 depending on how the model was trained.
+    # Convert it immediately so the UI shows negative/neutral/positive instead of raw IDs.
+    raw_predicted = model.predict([prepared_text])[0]
+    predicted = sentiment_label(raw_predicted)
 
     probabilities: Dict[str, float] = {}
     confidence: Optional[float] = None
@@ -389,8 +429,13 @@ def predict_review(text: str, lang_code: str) -> Tuple[Optional[str], Optional[f
     if hasattr(model, "predict_proba"):
         try:
             proba = model.predict_proba([prepared_text])[0]
-            classes = [str(c) for c in getattr(model, "classes_", LABEL_ORDER)]
-            probabilities = {classes[i]: float(proba[i]) for i in range(len(classes))}
+            raw_classes = list(getattr(model, "classes_", LABEL_ORDER))
+
+            # Map model classes to readable labels, for example 0 -> negative.
+            for i, class_value in enumerate(raw_classes):
+                readable_class = sentiment_label(class_value)
+                probabilities[readable_class] = float(proba[i])
+
             confidence = probabilities.get(predicted, float(np.max(proba)))
         except Exception:
             pass
@@ -400,11 +445,19 @@ def predict_review(text: str, lang_code: str) -> Tuple[Optional[str], Optional[f
             scores = np.array(model.decision_function([prepared_text])[0], dtype=float)
             exp_scores = np.exp(scores - np.max(scores))
             proba = exp_scores / exp_scores.sum()
-            classes = [str(c) for c in getattr(model, "classes_", LABEL_ORDER)]
-            probabilities = {classes[i]: float(proba[i]) for i in range(len(classes))}
+            raw_classes = list(getattr(model, "classes_", LABEL_ORDER))
+
+            for i, class_value in enumerate(raw_classes):
+                readable_class = sentiment_label(class_value)
+                probabilities[readable_class] = float(proba[i])
+
             confidence = probabilities.get(predicted, float(np.max(proba)))
         except Exception:
             pass
+
+    # Keep the table/chart in a clean order when all three classes are available.
+    if probabilities:
+        probabilities = {label: probabilities[label] for label in LABEL_ORDER if label in probabilities}
 
     return predicted, confidence, probabilities, prepared_text
 
@@ -435,8 +488,9 @@ def get_influential_features(pipeline: Any, prepared_text: str, predicted_label:
     try:
         X = feature_pipe.transform([prepared_text])
         feature_names = feature_pipe.get_feature_names_out()
-        classes = [str(c) for c in getattr(estimator, "classes_", LABEL_ORDER)]
-        class_idx = classes.index(str(predicted_label)) if str(predicted_label) in classes else int(np.argmax(estimator.coef_.sum(axis=1)))
+        raw_classes = list(getattr(estimator, "classes_", LABEL_ORDER))
+        readable_classes = [sentiment_label(c) for c in raw_classes]
+        class_idx = readable_classes.index(sentiment_label(predicted_label)) if sentiment_label(predicted_label) in readable_classes else int(np.argmax(estimator.coef_.sum(axis=1)))
 
         coef = estimator.coef_
         if coef.ndim == 1:
@@ -589,7 +643,7 @@ def dashboard_page() -> None:
         label_col = get_label_column(df)
         lang_col = get_language_column(df)
         if not df.empty and label_col:
-            sentiment_counts = df[label_col].value_counts().reindex(LABEL_ORDER).dropna()
+            sentiment_counts = display_sentiment_series(df[label_col]).value_counts().reindex(LABEL_ORDER).dropna()
             st.bar_chart(sentiment_counts)
         else:
             st.info("Dataset not available yet.")
@@ -827,20 +881,23 @@ def data_explorer_page() -> None:
             filtered = filtered[filtered[lang_col].astype(str).isin(selected_langs)]
     with f2:
         if label_col:
-            label_values = sorted(filtered[label_col].dropna().astype(str).unique())
+            label_values = [label for label in LABEL_ORDER if label in display_sentiment_series(filtered[label_col]).unique()]
             selected_labels = st.multiselect("Filter sentiments", label_values, default=label_values)
-            filtered = filtered[filtered[label_col].astype(str).isin(selected_labels)]
+            filtered = filtered[display_sentiment_series(filtered[label_col]).isin(selected_labels)]
 
     st.markdown("### Sample Data")
-    display_cols = [col for col in [lang_col, label_col, text_col, "raw_text", "score", "app_name", "reviewCreatedVersion"] if col and col in filtered.columns]
-    st.dataframe(filtered[display_cols].head(100) if display_cols else filtered.head(100), use_container_width=True)
+    display_frame = filtered.copy()
+    if label_col:
+        display_frame["sentiment_name"] = display_sentiment_series(display_frame[label_col])
+    display_cols = [col for col in [lang_col, "sentiment_name", label_col, text_col, "raw_text", "score", "app_name", "reviewCreatedVersion"] if col and col in display_frame.columns]
+    st.dataframe(display_frame[display_cols].head(100) if display_cols else display_frame.head(100), use_container_width=True)
 
     st.markdown("### Dataset Distributions")
     c5, c6 = st.columns(2)
     with c5:
         if label_col:
             st.markdown("#### Sentiment Distribution")
-            st.bar_chart(filtered[label_col].value_counts())
+            st.bar_chart(display_sentiment_series(filtered[label_col]).value_counts().reindex(LABEL_ORDER).dropna())
     with c6:
         if lang_col:
             st.markdown("#### Language Distribution")
