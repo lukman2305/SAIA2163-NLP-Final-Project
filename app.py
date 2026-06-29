@@ -180,8 +180,11 @@ st.markdown(
         border: 1px solid #e5e7eb;
         border-radius: 20px;
         padding: 1rem 1.05rem;
-        min-height: 122px;
+        min-height: 150px;
+        box-sizing: border-box;
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+        margin-bottom: 1.4rem;
+        overflow: visible;
     }
 
     .metric-card .label {
@@ -194,10 +197,12 @@ st.markdown(
 
     .metric-card .value {
         color: #0f172a;
-        font-size: 1.72rem;
+        font-size: 1.45rem;
         font-weight: 800;
         margin-top: 0.25rem;
-        line-height: 1.1;
+        line-height: 1.18;
+        word-wrap: break-word;
+        overflow-wrap: anywhere;
     }
 
     .metric-card .sub {
@@ -625,7 +630,9 @@ def dashboard_page() -> None:
     with c3:
         render_metric_card("Classes", str(summary["classes"] or 3), "Negative, neutral, positive")
     with c4:
-        render_metric_card("Best Model", best_model_name[:24] + ("..." if len(best_model_name) > 24 else ""), "Selected deployment pipeline")
+        render_metric_card("Best Model", best_model_name, "Selected deployment pipeline")
+
+    st.markdown("<div style='height: 1.6rem;'></div>", unsafe_allow_html=True)
 
     c5, c6, c7 = st.columns(3)
     with c5:
@@ -747,10 +754,14 @@ def analyzer_page() -> None:
     examples = {
         "Positive English": ("This app is very useful and easy to use.", "EN"),
         "Negative English": ("The app keeps crashing and I cannot login.", "EN"),
-        "Neutral English": ("It is okay, nothing special.", "EN"),
-        "French": ("Très bonne application, facile à utiliser.", "FR"),
-        "German": ("Die App funktioniert nicht und stürzt immer ab.", "DE"),
-        "Japanese": ("このアプリはとても便利です。", "JP"),
+        "Neutral English": ("Now how to mute stories?", "EN"),
+        "Positive French": ("Cette application est très pratique.", "FR"),
+        "Negative French": ("Cette application est très frustrante.", "FR"),
+        "Neutral French": ("Cette application permet de discuter.", "FR"),
+        "Positive German": ("Die App ist sehr nützlich und benutzerfreundlich.", "DE"),
+        "Negative German": ("Die App ist sehr frustrierend und voller Bugs.", "DE"),
+        "Neutral German": ("Zeigt neue nachrichten an obwohl keine gekommen sind. roter kreis.", "DE")
+        
     }
 
     left, right = st.columns([1.2, 0.8])
